@@ -57,13 +57,6 @@ next-env.d.ts
 /runs/
 *.cache
 
-# large duplicated raw dataset trees; dataset.yaml and dataset/README.md remain tracked
-/dataset/images/
-/dataset/labels/
-/dataset/train/
-/dataset/test/
-/dataset/valid/
-
 # duplicated local model copies; the canonical models/ artifacts are retained
 /weights/
 /yolo11n.pt

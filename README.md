@@ -239,7 +239,7 @@ The repository includes documentation of available local training outputs in [do
 
 ![YOLO validation predictions](docs/screenshots/yolo-validation-predictions.jpg)
 
-The raw dataset workspace is approximately 697 MB and contains duplicated image layouts and generated label caches. It is intentionally excluded from the normal GitHub commit to keep the repository practical; `dataset/dataset.yaml`, `dataset/README.md`, and all preparation/validation scripts are included. The dataset can be supplied separately if required for model retraining.
+The raw YOLO dataset is included through Git LFS so the repository remains self-contained for retraining. Generated label cache files and the `runs/` experiment-output tree are excluded.
 
 ## 14. Limitations
 
@@ -247,7 +247,7 @@ The raw dataset workspace is approximately 697 MB and contains duplicated image 
 - Similar-looking or contaminated materials may be difficult to distinguish.
 - Confidence is a model score, not a guarantee of correctness.
 - The current browser auth flow is intentionally lightweight and should be replaced with a server-backed identity provider for production use.
-- Raw training images are not included in the GitHub repository because of their size and duplicated layout.
+- Raw training images are stored through Git LFS because of their size.
 
 ## 15. Future Enhancements
 
