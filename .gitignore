@@ -1,0 +1,69 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+.vscode/
+.windsurf/
+.claude/
+.agents/
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files
+.env*
+!.env.example
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+/src/generated/prisma
+
+# local database files
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+
+# generated training outputs and caches
+/runs/
+*.cache
+
+# large duplicated raw dataset trees; dataset.yaml and dataset/README.md remain tracked
+/dataset/images/
+/dataset/labels/
+/dataset/train/
+/dataset/test/
+/dataset/valid/
+
+# duplicated local model copies; the canonical models/ artifacts are retained
+/weights/
+/yolo11n.pt

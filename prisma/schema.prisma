@@ -1,0 +1,34 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model PredictionLog {
+  id            String   @id @default(uuid())
+  image         String
+  predictedLabel String
+  confidence    Float
+  material      String
+  recyclable    Boolean
+  contamination String
+  cleaning      String
+  recommendation String
+  explanation   Json
+  alternatives  Json
+  createdAt     DateTime @default(now())
+}
+
+model Feedback {
+  id              String   @id @default(uuid())
+  image           String
+  predictedLabel  String
+  correctLabel    String
+  confidence      Float
+  timestamp       DateTime @default(now())
+  userFeedback    String
+  status          String   @default("stored")
+}

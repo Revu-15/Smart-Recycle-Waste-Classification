@@ -1,0 +1,23 @@
+path: ./dataset
+train: images/train
+val: images/val
+test: images/test
+
+nc: 16
+names:
+  0: Plastic Bottle
+  1: Plastic Bag
+  2: PET Plastic
+  3: HDPE Plastic
+  4: Glass Bottle
+  5: Paper
+  6: Cardboard
+  7: Aluminium Can
+  8: Steel Can
+  9: Food Waste
+  10: Organic Waste
+  11: E-Waste
+  12: Battery
+  13: Textile
+  14: Tetra Pak
+  15: Others
