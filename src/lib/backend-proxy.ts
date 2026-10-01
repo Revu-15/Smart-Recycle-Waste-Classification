@@ -9,7 +9,11 @@ export function shouldProxyToBackend(): boolean {
   return false;
 }
 
-export async function proxyToBackend(request: Request, path: string): Promise<Response | null> {
+export async function proxyToBackend(
+  request: Request,
+  path: string,
+  timeoutMs: number = 5000
+): Promise<Response | null> {
   const backend = RENDER_BACKEND_URL.replace(/\/$/, "");
   if (!backend) return null;
 
@@ -24,6 +28,7 @@ export async function proxyToBackend(request: Request, path: string): Promise<Re
   const options: RequestInit = {
     method: request.method,
     headers,
+    signal: AbortSignal.timeout(timeoutMs),
   };
 
   if (request.method !== "GET" && request.method !== "HEAD") {
@@ -42,7 +47,6 @@ export async function proxyToBackend(request: Request, path: string): Promise<Re
 
     const responseHeaders = new Headers();
     res.headers.forEach((value, key) => {
-      // Skip transfer-encoding or content-encoding that might conflict
       if (!["content-encoding", "transfer-encoding"].includes(key.toLowerCase())) {
         responseHeaders.set(key, value);
       }
@@ -54,7 +58,48 @@ export async function proxyToBackend(request: Request, path: string): Promise<Re
       headers: responseHeaders,
     });
   } catch (err) {
-    console.error(`[backend-proxy] Failed to proxy to ${url}:`, err);
+    console.warn(`[backend-proxy] Proxy to ${url} timed out or failed (${timeoutMs}ms limit):`, err);
+    return null;
+  }
+}
+
+export async function proxyFormDataToBackend(
+  path: string,
+  formData: FormData,
+  timeoutMs: number = 4500
+): Promise<Response | null> {
+  const backend = RENDER_BACKEND_URL.replace(/\/$/, "");
+  if (!backend) return null;
+
+  const url = `${backend}${path.startsWith("/") ? path : `/${path}`}`;
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      body: formData,
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+
+    if (!res.ok) {
+      console.warn(`[backend-proxy] Render returned ${res.status} for ${url}`);
+      return null;
+    }
+
+    const body = await res.arrayBuffer();
+    const responseHeaders = new Headers();
+    res.headers.forEach((value, key) => {
+      if (!["content-encoding", "transfer-encoding"].includes(key.toLowerCase())) {
+        responseHeaders.set(key, value);
+      }
+    });
+
+    return new Response(body, {
+      status: res.status,
+      statusText: res.statusText,
+      headers: responseHeaders,
+    });
+  } catch (err) {
+    console.warn(`[backend-proxy] Fast fallback engaged: proxy to ${url} exceeded ${timeoutMs}ms`);
     return null;
   }
 }

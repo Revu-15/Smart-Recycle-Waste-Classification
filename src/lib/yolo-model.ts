@@ -49,7 +49,7 @@ async function getNewestModelPath() {
 async function listFiles(directory: string) {
   try {
     const entries = await readdir(directory, { withFileTypes: true });
-    const files: Array<{ fullPath: string; mtimeMs: number }> = [];
+    const files: Array<{ fullPath: string; mtimeMs: number; size: number }> = [];
 
     for (const entry of entries) {
       const fullPath = path.join(directory, entry.name);
@@ -59,7 +59,10 @@ async function listFiles(directory: string) {
       }
 
       const fileStats = await stat(fullPath);
-      files.push({ fullPath, mtimeMs: fileStats.mtimeMs });
+      // Require real model weights >= 2MB (rejects 132-byte git LFS pointers)
+      if (fileStats.size >= 2_000_000) {
+        files.push({ fullPath, mtimeMs: fileStats.mtimeMs, size: fileStats.size });
+      }
     }
 
     return files;
@@ -248,7 +251,7 @@ export async function inferWasteWithYolo(file: File): Promise<PredictionResponse
     boundingBox: BoundingBox & { x1?: number; y1?: number; x2?: number; y2?: number };
   }> = [];
 
-  const weightsArg = modelPath ?? "yolo11n.pt";
+  const weightsArg = modelPath ?? "";
   const imageBuffer = Buffer.from(await file.arrayBuffer());
   const tempFilePath = path.join(tmpdir(), `${toDetString(file.name || "waste-image")}-${Date.now()}.jpg`);
   await writeFile(tempFilePath, imageBuffer);
@@ -260,6 +263,8 @@ export async function inferWasteWithYolo(file: File): Promise<PredictionResponse
       {
         cwd: process.cwd(),
         encoding: "utf8",
+        timeout: 3500, // Maximum 3.5s hard execution ceiling to guarantee sub-10s response
+        killSignal: "SIGKILL",
       },
     );
 
@@ -278,6 +283,8 @@ export async function inferWasteWithYolo(file: File): Promise<PredictionResponse
     }
   } catch (error) {
     console.warn("[YOLO execution fallback]", error);
+  } finally {
+    import("node:fs/promises").then(({ unlink }) => unlink(tempFilePath).catch(() => {}));
   }
 
   const enrichedObjects: PredictionObject[] = rawObjects.length > 0
