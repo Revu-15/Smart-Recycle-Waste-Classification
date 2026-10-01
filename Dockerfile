@@ -36,11 +36,11 @@ RUN npm run build
 
 # Set environment
 ENV NODE_ENV=production
-ENV PORT=3000
+ENV PORT=10000
 ENV HOSTNAME="0.0.0.0"
 ENV PYTHON_BIN="/opt/venv/bin/python"
 
-EXPOSE 3000
+EXPOSE 10000
 
-# Start server
-CMD ["npx", "next", "start", "-p", "3000", "-H", "0.0.0.0"]
+# Start server dynamically listening on Render's assigned $PORT
+CMD ["sh", "-c", "npx next start -p ${PORT:-10000} -H 0.0.0.0"]
