@@ -20,9 +20,13 @@ import {
   ArrowRight,
   RefreshCcw,
   BookOpen,
+  Lock,
+  UserPlus,
+  LogIn,
+  LogOut,
 } from "lucide-react";
 import { useWasteClassifier } from "@/hooks/useWasteClassifier";
-import { isAuthenticated } from "@/lib/auth";
+import { isAuthenticated, getCurrentUser, logout, subscribeToAuth, type UserSession } from "@/lib/auth";
 import { wasteCategories } from "@/lib/waste-data";
 
 const PredictionResultCard = dynamic(
@@ -38,6 +42,7 @@ export default function WasteAnalyzerPage() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
+  const [currentUser, setCurrentUser] = useState<UserSession | null>(null);
   const [activeTab, setActiveTab] = useState<"upload" | "results" | "help" | "how-it-works">("upload");
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraStatus, setCameraStatus] = useState("Ready to capture");
@@ -45,6 +50,7 @@ export default function WasteAnalyzerPage() {
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [showHowItWorksModal, setShowHowItWorksModal] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
   const {
     preview,
@@ -58,19 +64,35 @@ export default function WasteAnalyzerPage() {
   } = useWasteClassifier();
 
   useEffect(() => {
+    setCurrentUser(getCurrentUser());
+    const unsubscribe = subscribeToAuth(() => {
+      setCurrentUser(getCurrentUser());
+    });
+
     return () => {
+      unsubscribe();
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => track.stop());
       }
     };
   }, []);
 
+  function requireAuth(): boolean {
+    if (!isAuthenticated() || !currentUser) {
+      setShowAuthModal(true);
+      return false;
+    }
+    return true;
+  }
+
   async function handleAnalyze() {
+    if (!requireAuth()) return;
     await analyzeImage();
     setActiveTab("results");
   }
 
   async function startCamera() {
+    if (!requireAuth()) return;
     setCameraStatus("Requesting camera access...");
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
@@ -96,6 +118,7 @@ export default function WasteAnalyzerPage() {
   }
 
   function captureFromCamera() {
+    if (!requireAuth()) return;
     if (!videoRef.current || !streamRef.current) return;
     const canvas = document.createElement("canvas");
     canvas.width = videoRef.current.videoWidth || 640;
@@ -113,6 +136,10 @@ export default function WasteAnalyzerPage() {
   }
 
   function onFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    if (!requireAuth()) {
+      event.target.value = "";
+      return;
+    }
     const nextFile = event.target.files?.[0] ?? null;
     setSelectedFile(nextFile);
   }
@@ -120,8 +147,16 @@ export default function WasteAnalyzerPage() {
   function handleDrop(event: React.DragEvent<HTMLDivElement>) {
     event.preventDefault();
     setDragActive(false);
+    if (!requireAuth()) {
+      return;
+    }
     const nextFile = event.dataTransfer.files?.[0] ?? null;
     setSelectedFile(nextFile);
+  }
+
+  function handleChooseFileClick() {
+    if (!requireAuth()) return;
+    fileInputRef.current?.click();
   }
 
   return (
@@ -143,27 +178,63 @@ export default function WasteAnalyzerPage() {
             </div>
           </Link>
 
-          <nav className="flex items-center gap-2 sm:gap-4">
+          <nav className="flex items-center gap-2 sm:gap-3">
             <button
               onClick={() => setShowHowItWorksModal(true)}
-              className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 sm:text-sm"
+              className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 sm:text-sm"
             >
               <Info className="h-4 w-4 text-emerald-600" />
               <span className="hidden sm:inline">How It Works</span>
             </button>
             <button
               onClick={() => setShowHelpModal(true)}
-              className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 sm:text-sm"
+              className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 sm:text-sm"
             >
               <HelpCircle className="h-4 w-4 text-teal-600" />
-              <span>Need Help?</span>
+              <span className="hidden sm:inline">Need Help?</span>
             </button>
-            <button
-              onClick={() => router.push(isAuthenticated() ? "/dashboard" : "/login")}
-              className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-bold text-emerald-800 shadow-sm transition hover:bg-emerald-100 sm:text-sm"
-            >
-              Dashboard <ArrowRight className="h-3.5 w-3.5" />
-            </button>
+
+            {currentUser ? (
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-900">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-[10px] font-bold text-white uppercase">
+                    {currentUser.name ? currentUser.name[0] : "U"}
+                  </span>
+                  <span className="hidden md:inline font-medium">{currentUser.name}</span>
+                </div>
+                <button
+                  onClick={() => router.push("/dashboard")}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-white px-3.5 py-1.5 text-xs font-bold text-emerald-800 shadow-sm transition hover:bg-emerald-50"
+                >
+                  Dashboard <ArrowRight className="h-3 w-3" />
+                </button>
+                <button
+                  onClick={() => logout(router)}
+                  className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-rose-50 hover:text-rose-600 transition"
+                  title="Sign Out"
+                >
+                  <LogOut className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Sign Out</span>
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Link
+                  href="/login?mode=signin&returnUrl=/waste-analyzer"
+                  className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition sm:text-sm"
+                >
+                  <LogIn className="h-4 w-4 text-slate-600" />
+                  <span>Sign In</span>
+                </Link>
+                <Link
+                  href="/login?mode=signup&returnUrl=/waste-analyzer"
+                  className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-emerald-600 to-teal-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-sm shadow-emerald-600/20 transition hover:from-emerald-700 hover:to-teal-700 sm:text-sm"
+                >
+                  <UserPlus className="h-4 w-4" />
+                  <span>Create Account</span>
+                </Link>
+              </div>
+            )}
           </nav>
         </div>
       </header>
@@ -294,6 +365,7 @@ export default function WasteAnalyzerPage() {
               <div
                 onDragOver={(e) => {
                   e.preventDefault();
+                  if (!currentUser) return;
                   setDragActive(true);
                 }}
                 onDragLeave={(e) => {
@@ -302,38 +374,95 @@ export default function WasteAnalyzerPage() {
                 }}
                 onDrop={handleDrop}
                 className={`relative flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-8 text-center transition-all ${
-                  dragActive
+                  !currentUser
+                    ? "border-amber-200 bg-amber-50/40"
+                    : dragActive
                     ? "border-emerald-500 bg-emerald-50"
                     : "border-slate-300 bg-slate-50/70 hover:border-emerald-400 hover:bg-emerald-50/30"
                 }`}
               >
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700 shadow-sm">
-                  <UploadCloud className="h-7 w-7" />
-                </div>
-                <h3 className="mt-4 text-base font-bold text-slate-900">
-                  Drag and drop your waste photo here
-                </h3>
-                <p className="mt-1 text-xs text-slate-500">
-                  or select an option to choose from gallery or use camera
-                </p>
+                {!currentUser ? (
+                  <div className="flex flex-col items-center max-w-md">
+                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-100 text-amber-700 shadow-sm">
+                      <Lock className="h-7 w-7" />
+                    </div>
+                    <h3 className="mt-4 text-base font-bold text-slate-900">
+                      Account Required to Upload
+                    </h3>
+                    <p className="mt-1.5 text-xs text-slate-600 leading-relaxed">
+                      You cannot upload or scan images without an account. Please create an account or sign in to start classifying waste with our YOLOv11 AI model.
+                    </p>
 
-                <div className="mt-5 flex flex-wrap justify-center gap-3">
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-semibold text-white shadow transition hover:bg-slate-800"
-                  >
-                    <ImageIcon className="h-4 w-4" />
-                    Choose File
-                  </button>
+                    <div className="mt-5 flex flex-wrap justify-center gap-3">
+                      <Link
+                        href="/login?mode=signup&required=1&returnUrl=/waste-analyzer"
+                        className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-emerald-600/20 transition hover:from-emerald-700 hover:to-teal-700"
+                      >
+                        <UserPlus className="h-4 w-4" />
+                        Create Account
+                      </Link>
 
-                  <button
-                    onClick={startCamera}
-                    className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50"
-                  >
-                    <Camera className="h-4 w-4 text-emerald-600" />
-                    Live Camera
-                  </button>
-                </div>
+                      <Link
+                        href="/login?mode=signin&required=1&returnUrl=/waste-analyzer"
+                        className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                      >
+                        <LogIn className="h-4 w-4 text-emerald-600" />
+                        Sign In
+                      </Link>
+                    </div>
+
+                    <div className="mt-4 flex items-center gap-2 text-[11px] text-slate-400">
+                      <span>Or click below to browse/camera:</span>
+                    </div>
+
+                    <div className="mt-2 flex gap-2">
+                      <button
+                        onClick={handleChooseFileClick}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100"
+                      >
+                        <ImageIcon className="h-3.5 w-3.5 text-slate-500" />
+                        Choose File
+                      </button>
+                      <button
+                        onClick={startCamera}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100"
+                      >
+                        <Camera className="h-3.5 w-3.5 text-slate-500" />
+                        Live Camera
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700 shadow-sm">
+                      <UploadCloud className="h-7 w-7" />
+                    </div>
+                    <h3 className="mt-4 text-base font-bold text-slate-900">
+                      Drag and drop your waste photo here
+                    </h3>
+                    <p className="mt-1 text-xs text-slate-500">
+                      or select an option to choose from gallery or use camera
+                    </p>
+
+                    <div className="mt-5 flex flex-wrap justify-center gap-3">
+                      <button
+                        onClick={handleChooseFileClick}
+                        className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-semibold text-white shadow transition hover:bg-slate-800"
+                      >
+                        <ImageIcon className="h-4 w-4" />
+                        Choose File
+                      </button>
+
+                      <button
+                        onClick={startCamera}
+                        className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50"
+                      >
+                        <Camera className="h-4 w-4 text-emerald-600" />
+                        Live Camera
+                      </button>
+                    </div>
+                  </>
+                )}
 
                 <input
                   ref={fileInputRef}
@@ -725,6 +854,55 @@ export default function WasteAnalyzerPage() {
               >
                 Got It
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Account Required Auth Modal */}
+      {showAuthModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm animate-in fade-in">
+          <div className="relative w-full max-w-md overflow-hidden rounded-3xl border border-emerald-100 bg-white p-7 shadow-2xl">
+            <button
+              onClick={() => setShowAuthModal(false)}
+              className="absolute right-4 top-4 rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+            >
+              <X className="h-5 w-5" />
+            </button>
+
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-100 text-amber-700 shadow-sm">
+              <Lock className="h-7 w-7 text-amber-600" />
+            </div>
+
+            <h3 className="mt-4 text-xl font-extrabold text-slate-900">
+              Account Required to Upload
+            </h3>
+            <p className="mt-2 text-xs leading-relaxed text-slate-600">
+              To upload waste photos and analyze items with YOLOv11 AI, you must create a free account or sign in. This ensures your recycling analytics, contamination alerts, and retraining corrections are saved securely.
+            </p>
+
+            <div className="mt-6 space-y-3">
+              <Link
+                href="/login?mode=signup&required=1&returnUrl=/waste-analyzer"
+                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-600/20 transition hover:from-emerald-700 hover:to-teal-700"
+              >
+                <UserPlus className="h-4 w-4" />
+                Create Free Account
+              </Link>
+
+              <Link
+                href="/login?mode=signin&required=1&returnUrl=/waste-analyzer"
+                className="flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                <LogIn className="h-4 w-4 text-emerald-600" />
+                Sign In With Existing Account
+              </Link>
+            </div>
+
+            <div className="mt-5 border-t border-slate-100 pt-4 text-center">
+              <span className="text-[11px] text-slate-400">
+                Free & instant setup • Explainable AI Waste Classification
+              </span>
             </div>
           </div>
         </div>
