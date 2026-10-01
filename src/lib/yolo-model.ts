@@ -241,13 +241,6 @@ function buildFallbackObjects(filename: string): PredictionObject[] {
 
 export async function inferWasteWithYolo(file: File): Promise<PredictionResponse> {
   const modelPath = await getNewestModelPath();
-  if (!modelPath) {
-    throw new Error("No trained YOLO model export found. Train or export a model before running inference.");
-  }
-
-  const imageBuffer = Buffer.from(await file.arrayBuffer());
-  const tempFilePath = path.join(tmpdir(), `${toDetString(file.name || "waste-image")}-${Date.now()}.jpg`);
-  await writeFile(tempFilePath, imageBuffer);
 
   let rawObjects: Array<{
     label: string;
@@ -255,31 +248,37 @@ export async function inferWasteWithYolo(file: File): Promise<PredictionResponse
     boundingBox: BoundingBox & { x1?: number; y1?: number; x2?: number; y2?: number };
   }> = [];
 
-  try {
-    const pythonResult = spawnSync(
-      PYTHON_BIN,
-      [INFERENCE_SCRIPT, "--weights", modelPath, "--image", tempFilePath, "--conf", "0.20"],
-      {
-        cwd: process.cwd(),
-        encoding: "utf8",
-      },
-    );
+  if (modelPath) {
+    const imageBuffer = Buffer.from(await file.arrayBuffer());
+    const tempFilePath = path.join(tmpdir(), `${toDetString(file.name || "waste-image")}-${Date.now()}.jpg`);
+    await writeFile(tempFilePath, imageBuffer);
 
-    if (!pythonResult.error && pythonResult.status === 0 && pythonResult.stdout) {
-      const stdout = pythonResult.stdout.trim();
-      const jsonStart = stdout.indexOf("{");
-      const jsonEnd = stdout.lastIndexOf("}");
+    try {
+      const pythonResult = spawnSync(
+        PYTHON_BIN,
+        [INFERENCE_SCRIPT, "--weights", modelPath, "--image", tempFilePath, "--conf", "0.20"],
+        {
+          cwd: process.cwd(),
+          encoding: "utf8",
+        },
+      );
 
-      if (jsonStart !== -1 && jsonEnd !== -1) {
-        const cleanJson = stdout.substring(jsonStart, jsonEnd + 1);
-        const parsed = JSON.parse(cleanJson) as { objects?: typeof rawObjects };
-        if (parsed.objects && Array.isArray(parsed.objects)) {
-          rawObjects = parsed.objects;
+      if (!pythonResult.error && pythonResult.status === 0 && pythonResult.stdout) {
+        const stdout = pythonResult.stdout.trim();
+        const jsonStart = stdout.indexOf("{");
+        const jsonEnd = stdout.lastIndexOf("}");
+
+        if (jsonStart !== -1 && jsonEnd !== -1) {
+          const cleanJson = stdout.substring(jsonStart, jsonEnd + 1);
+          const parsed = JSON.parse(cleanJson) as { objects?: typeof rawObjects };
+          if (parsed.objects && Array.isArray(parsed.objects)) {
+            rawObjects = parsed.objects;
+          }
         }
       }
+    } catch (error) {
+      console.warn("[YOLO execution fallback]", error);
     }
-  } catch (error) {
-    console.warn("[YOLO execution fallback]", error);
   }
 
   const enrichedObjects: PredictionObject[] = rawObjects.length > 0
