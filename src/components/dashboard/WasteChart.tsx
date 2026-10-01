@@ -60,7 +60,7 @@ export function WasteChart() {
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Tooltip
-                formatter={(value: number, name: string) => [`${value} predictions`, name]}
+                formatter={(value: any, name: any) => [`${value ?? 0} predictions`, String(name ?? "")]}
                 contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 12 }}
               />
               <Pie
@@ -69,8 +69,8 @@ export function WasteChart() {
                 outerRadius={90}
                 innerRadius={55}
                 paddingAngle={2}
-                label={({ percent }) =>
-                  percent > 0.06 ? `${(percent * 100).toFixed(0)}%` : ""
+                label={({ percent }: any) =>
+                  (percent ?? 0) > 0.06 ? `${((percent ?? 0) * 100).toFixed(0)}%` : ""
                 }
                 labelLine={false}
               >

@@ -9,7 +9,7 @@ function getPythonBin(): string {
   if (process.env.PYTHON_BIN) {
     return process.env.PYTHON_BIN;
   }
-  const venvPython = path.resolve(process.cwd(), ".venv", "Scripts", "python.exe");
+  const venvPython = path.join(/* turbopackIgnore: true */ process.cwd(), ".venv", "Scripts", "python.exe");
   if (existsSync(venvPython)) {
     return venvPython;
   }
@@ -17,9 +17,9 @@ function getPythonBin(): string {
 }
 
 const PYTHON_BIN = getPythonBin();
-const MODEL_ROOT = path.resolve(process.cwd(), "models");
-const WEIGHTS_ROOT = path.resolve(process.cwd(), "weights");
-const INFERENCE_SCRIPT = path.resolve(process.cwd(), "training", "predict.py");
+const MODEL_ROOT = path.join(/* turbopackIgnore: true */ process.cwd(), "models");
+const WEIGHTS_ROOT = path.join(/* turbopackIgnore: true */ process.cwd(), "weights");
+const INFERENCE_SCRIPT = path.join(/* turbopackIgnore: true */ process.cwd(), "training", "predict.py");
 
 function toDetString(value: string) {
   return value.replace(/[^a-zA-Z0-9._-]/g, "-").toLowerCase();

@@ -37,11 +37,11 @@ function RecyclablePieChart({ recyclable, nonRecyclable }: { recyclable: number;
     <ResponsiveContainer width="100%" height={260}>
       <PieChart>
         <Tooltip
-          formatter={(v: number, n: string) => [`${v} items`, n]}
+          formatter={(v: any, n: any) => [`${v ?? 0} items`, String(n ?? "")]}
           contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 12 }}
         />
         <Legend iconType="circle" iconSize={8} formatter={(v) => <span style={{ fontSize: 11, color: "#64748b" }}>{v}</span>} />
-        <Pie data={data} dataKey="value" outerRadius={90} innerRadius={55} paddingAngle={3} label={({ percent }) => percent > 0.05 ? `${(percent * 100).toFixed(0)}%` : ""} labelLine={false}>
+        <Pie data={data} dataKey="value" outerRadius={90} innerRadius={55} paddingAngle={3} label={({ percent }: any) => (percent ?? 0) > 0.05 ? `${((percent ?? 0) * 100).toFixed(0)}%` : ""} labelLine={false}>
           {data.map((entry, index) => (
             <Cell key={`pie-cell-${entry.name}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
           ))}
@@ -163,7 +163,7 @@ export default function WasteAnalyticsPage() {
                       <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} />
                       <Tooltip
                         contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 12 }}
-                        formatter={(v: number) => [`${v} predictions`]}
+                        formatter={(v: any) => [`${v ?? 0} predictions`]}
                       />
                       <Bar dataKey="value" radius={[6, 6, 0, 0]}>
                         {wasteBarData.map((entry, index) => (
