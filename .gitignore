@@ -57,6 +57,14 @@ next-env.d.ts
 /runs/
 *.cache
 
-# duplicated local model copies; the canonical models/ artifacts are retained
+# models and weights
+/models/
 /weights/
 /yolo11n.pt
+
+# local dataset assets (images and labels)
+/dataset/images/
+/dataset/labels/
+/dataset/test/
+/dataset/train/
+/dataset/valid/
