@@ -2,8 +2,14 @@ import { NextResponse } from "next/server";
 import { addPredictionToLog } from "@/lib/server-store";
 import type { PredictionResponse } from "@/lib/types";
 import { inferWasteWithYolo } from "@/lib/yolo-model";
+import { shouldProxyToBackend, proxyToBackend } from "@/lib/backend-proxy";
 
 export async function POST(request: Request) {
+  if (shouldProxyToBackend()) {
+    const proxied = await proxyToBackend(request, "/api/predict");
+    if (proxied) return proxied;
+  }
+
   try {
     const form = await request.formData();
     const image = form.get("image") as File | null;

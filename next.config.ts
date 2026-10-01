@@ -1,5 +1,8 @@
 import type { NextConfig } from "next";
 
+const defaultBackend = process.env.VERCEL ? "https://smart-recycle-waste-classification.onrender.com" : "";
+const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || defaultBackend;
+
 const nextConfig: NextConfig = {
   async headers() {
     return [
@@ -18,7 +21,6 @@ const nextConfig: NextConfig = {
     ];
   },
   async rewrites() {
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL;
     if (backendUrl) {
       return [
         {

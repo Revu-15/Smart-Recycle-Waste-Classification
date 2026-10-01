@@ -1,9 +1,17 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { prisma, ensureDatabaseTables } from "@/lib/prisma";
 import { verifyPassword } from "@/lib/password";
+import { shouldProxyToBackend, proxyToBackend } from "@/lib/backend-proxy";
 
 export async function POST(request: Request) {
+  if (shouldProxyToBackend()) {
+    const proxied = await proxyToBackend(request, "/api/auth/login");
+    if (proxied) return proxied;
+  }
+
   try {
+    await ensureDatabaseTables();
+
     const body = await request.json();
     const { email, password } = body;
 
@@ -36,6 +44,7 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("[auth/login] error:", error);
-    return NextResponse.json({ error: "Failed to sign in. Please try again." }, { status: 500 });
+    const msg = error instanceof Error ? error.message : "Failed to sign in. Please try again.";
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

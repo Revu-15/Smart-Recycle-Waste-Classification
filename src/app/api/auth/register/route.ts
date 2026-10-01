@@ -1,9 +1,17 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { prisma, ensureDatabaseTables } from "@/lib/prisma";
 import { hashPassword } from "@/lib/password";
+import { shouldProxyToBackend, proxyToBackend } from "@/lib/backend-proxy";
 
 export async function POST(request: Request) {
+  if (shouldProxyToBackend()) {
+    const proxied = await proxyToBackend(request, "/api/auth/register");
+    if (proxied) return proxied;
+  }
+
   try {
+    await ensureDatabaseTables();
+
     const body = await request.json();
     const { name, email, password } = body;
 
@@ -52,6 +60,7 @@ export async function POST(request: Request) {
     );
   } catch (error) {
     console.error("[auth/register] error:", error);
-    return NextResponse.json({ error: "Failed to create account. Please try again." }, { status: 500 });
+    const msg = error instanceof Error ? error.message : "Failed to create account. Please try again.";
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
