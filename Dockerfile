@@ -28,8 +28,9 @@ RUN npm ci
 # Copy application source code
 COPY . .
 
-# Generate Prisma Client
+# Generate Prisma Client and ensure database schema is migrated
 RUN npx prisma generate
+RUN npx prisma migrate deploy
 
 # Build Next.js application
 RUN npm run build
@@ -42,5 +43,5 @@ ENV PYTHON_BIN="/opt/venv/bin/python"
 
 EXPOSE 10000
 
-# Start server dynamically listening on Render's assigned $PORT
-CMD ["sh", "-c", "npx next start -p ${PORT:-10000} -H 0.0.0.0"]
+# Ensure database migrations are applied on container startup and start server
+CMD ["sh", "-c", "npx prisma migrate deploy || true; npx next start -p ${PORT:-10000} -H 0.0.0.0"]
