@@ -3,27 +3,28 @@
 import { Suspense, useState, FormEvent, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { LockKeyhole, LogIn, UserPlus, ArrowLeft, Loader2, CheckCircle2 } from "lucide-react";
+import { LockKeyhole, LogIn, UserPlus, ArrowLeft, Loader2, CheckCircle2, KeyRound, AlertCircle } from "lucide-react";
 import { setAuthenticated, getCurrentUser } from "@/lib/auth";
 
 function LoginFormContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const initialMode = searchParams.get("mode") === "signup" ? "signup" : "signin";
+  const queryMode = searchParams.get("mode");
+  const initialMode = queryMode === "signup" ? "signup" : queryMode === "forgot" ? "forgot" : "signin";
   const returnUrl = searchParams.get("returnUrl") || "/waste-analyzer";
 
-  const [mode, setMode] = useState<"signin" | "signup">(initialMode);
+  const [mode, setMode] = useState<"signin" | "signup" | "forgot">(initialMode);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [isDuplicateEmail, setIsDuplicateEmail] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
 
   useEffect(() => {
-    // If already authenticated, redirect
     if (getCurrentUser()) {
       router.replace(returnUrl);
     }
@@ -32,10 +33,11 @@ function LoginFormContent() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
+    setIsDuplicateEmail(false);
     setSuccessMessage("");
 
-    if (!email || !password) {
-      setError("Please fill in all required fields.");
+    if (!email.trim()) {
+      setError("Please enter your email address.");
       return;
     }
 
@@ -46,6 +48,20 @@ function LoginFormContent() {
       }
       if (password.length < 6) {
         setError("Password must be at least 6 characters.");
+        return;
+      }
+      if (password !== confirmPassword) {
+        setError("Passwords do not match.");
+        return;
+      }
+    } else if (mode === "signin") {
+      if (!password) {
+        setError("Please enter your password.");
+        return;
+      }
+    } else if (mode === "forgot") {
+      if (password.length < 6) {
+        setError("New password must be at least 6 characters.");
         return;
       }
       if (password !== confirmPassword) {
@@ -67,6 +83,10 @@ function LoginFormContent() {
         const data = await response.json();
 
         if (!response.ok) {
+          if (response.status === 409 || data.error?.toLowerCase().includes("already exists")) {
+            setIsDuplicateEmail(true);
+            throw new Error("An account with this email already exists. You cannot create another account with the same email.");
+          }
           throw new Error(data.error || "Failed to create account.");
         }
 
@@ -75,7 +95,7 @@ function LoginFormContent() {
         setTimeout(() => {
           router.replace(returnUrl);
         }, 800);
-      } else {
+      } else if (mode === "signin") {
         const response = await fetch("/api/auth/login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -90,6 +110,26 @@ function LoginFormContent() {
 
         setAuthenticated(data.user);
         router.replace(returnUrl);
+      } else if (mode === "forgot") {
+        const response = await fetch("/api/auth/reset-password", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: email.trim(), newPassword: password }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || "Failed to reset password.");
+        }
+
+        setSuccessMessage("Password reset successfully! Signing you in with your new password...");
+        if (data.user) {
+          setAuthenticated(data.user);
+        }
+        setTimeout(() => {
+          router.replace(returnUrl);
+        }, 1000);
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Authentication error.");
@@ -116,14 +156,28 @@ function LoginFormContent() {
 
         <div className="mb-6 flex items-center gap-3">
           <div className="rounded-2xl bg-emerald-100 p-3 text-emerald-700">
-            {mode === "signup" ? <UserPlus className="h-6 w-6" /> : <LockKeyhole className="h-6 w-6" />}
+            {mode === "signup" ? (
+              <UserPlus className="h-6 w-6" />
+            ) : mode === "forgot" ? (
+              <KeyRound className="h-6 w-6" />
+            ) : (
+              <LockKeyhole className="h-6 w-6" />
+            )}
           </div>
           <div>
             <h1 className="text-xl font-bold text-slate-900">
-              {mode === "signup" ? "Create an Account" : "Sign In to Your Account"}
+              {mode === "signup"
+                ? "Create an Account"
+                : mode === "forgot"
+                ? "Reset Your Password"
+                : "Sign In to Your Account"}
             </h1>
             <p className="text-xs text-slate-500">
-              {mode === "signup" ? "Create an account to upload and analyze waste" : "Sign in to upload photos and save history"}
+              {mode === "signup"
+                ? "Create a unique account to upload and analyze waste"
+                : mode === "forgot"
+                ? "Enter your email and create a new password"
+                : "Sign in to upload photos and save history"}
             </p>
           </div>
         </div>
@@ -135,6 +189,7 @@ function LoginFormContent() {
             onClick={() => {
               setMode("signin");
               setError("");
+              setIsDuplicateEmail(false);
             }}
             className={`flex-1 rounded-lg py-2 text-xs font-bold transition ${
               mode === "signin" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-900"
@@ -147,6 +202,7 @@ function LoginFormContent() {
             onClick={() => {
               setMode("signup");
               setError("");
+              setIsDuplicateEmail(false);
             }}
             className={`flex-1 rounded-lg py-2 text-xs font-bold transition ${
               mode === "signup" ? "bg-white text-emerald-700 shadow-sm" : "text-slate-500 hover:text-slate-900"
@@ -156,7 +212,7 @@ function LoginFormContent() {
           </button>
         </div>
 
-        {searchParams.get("required") && (
+        {searchParams.get("required") && mode !== "forgot" && (
           <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
             <strong>Account Required:</strong> Please sign in or create a free account to upload and classify images.
           </div>
@@ -166,6 +222,42 @@ function LoginFormContent() {
           <div className="mb-4 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800">
             <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
             <span>{successMessage}</span>
+          </div>
+        )}
+
+        {isDuplicateEmail && (
+          <div className="mb-4 rounded-2xl border border-amber-300 bg-amber-50/90 p-4 text-xs text-amber-900 shadow-sm">
+            <div className="flex items-center gap-2 font-bold text-amber-950">
+              <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
+              <span>Email Already Registered</span>
+            </div>
+            <p className="mt-1.5 leading-relaxed text-slate-600">
+              An account with <strong>{email}</strong> already exists. You cannot register multiple accounts with the same email.
+            </p>
+            <div className="mt-3 flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("signin");
+                  setError("");
+                  setIsDuplicateEmail(false);
+                }}
+                className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-emerald-700"
+              >
+                Sign In Now
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("forgot");
+                  setError("");
+                  setIsDuplicateEmail(false);
+                }}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Forgot Password?
+              </button>
+            </div>
           </div>
         )}
 
@@ -191,18 +283,38 @@ function LoginFormContent() {
               required
               autoComplete="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                if (isDuplicateEmail) setIsDuplicateEmail(false);
+              }}
               placeholder="alex@example.com"
               className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-100"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700">Password</label>
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700">
+                {mode === "forgot" ? "New Password" : "Password"}
+              </label>
+              {mode === "signin" && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode("forgot");
+                    setError("");
+                    setIsDuplicateEmail(false);
+                  }}
+                  className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 hover:underline"
+                >
+                  Forgot password?
+                </button>
+              )}
+            </div>
             <input
               type="password"
               required
-              autoComplete={mode === "signup" ? "new-password" : "current-password"}
+              autoComplete={mode === "signup" || mode === "forgot" ? "new-password" : "current-password"}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
@@ -210,9 +322,11 @@ function LoginFormContent() {
             />
           </div>
 
-          {mode === "signup" && (
+          {(mode === "signup" || mode === "forgot") && (
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700">Confirm Password</label>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700">
+                {mode === "forgot" ? "Confirm New Password" : "Confirm Password"}
+              </label>
               <input
                 type="password"
                 required
@@ -225,7 +339,11 @@ function LoginFormContent() {
             </div>
           )}
 
-          {error && <p className="text-xs font-semibold text-rose-600 bg-rose-50 border border-rose-100 rounded-lg p-2.5">{error}</p>}
+          {error && !isDuplicateEmail && (
+            <p className="text-xs font-semibold text-rose-600 bg-rose-50 border border-rose-100 rounded-lg p-2.5">
+              {error}
+            </p>
+          )}
 
           <button
             type="submit"
@@ -235,12 +353,21 @@ function LoginFormContent() {
             {loading ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                {mode === "signup" ? "Creating Account..." : "Signing In..."}
+                {mode === "signup"
+                  ? "Creating Account..."
+                  : mode === "forgot"
+                  ? "Resetting Password..."
+                  : "Signing In..."}
               </>
             ) : mode === "signup" ? (
               <>
                 <UserPlus className="h-4 w-4" />
                 Create Account
+              </>
+            ) : mode === "forgot" ? (
+              <>
+                <KeyRound className="h-4 w-4" />
+                Reset Password & Sign In
               </>
             ) : (
               <>
@@ -260,10 +387,26 @@ function LoginFormContent() {
                 onClick={() => {
                   setMode("signup");
                   setError("");
+                  setIsDuplicateEmail(false);
                 }}
                 className="font-bold text-emerald-600 hover:underline"
               >
                 Create one now
+              </button>
+            </p>
+          ) : mode === "forgot" ? (
+            <p>
+              Remember your password?{" "}
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("signin");
+                  setError("");
+                  setIsDuplicateEmail(false);
+                }}
+                className="font-bold text-emerald-600 hover:underline"
+              >
+                Back to Sign In
               </button>
             </p>
           ) : (
@@ -274,6 +417,7 @@ function LoginFormContent() {
                 onClick={() => {
                   setMode("signin");
                   setError("");
+                  setIsDuplicateEmail(false);
                 }}
                 className="font-bold text-emerald-600 hover:underline"
               >

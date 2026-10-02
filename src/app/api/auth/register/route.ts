@@ -60,6 +60,13 @@ export async function POST(request: Request) {
     );
   } catch (error) {
     console.error("[auth/register] error:", error);
+    const errorStr = String(error);
+    if (errorStr.includes("P2002") || errorStr.includes("Unique constraint") || errorStr.includes("UNIQUE constraint")) {
+      return NextResponse.json(
+        { error: "An account with this email already exists. Please sign in or reset your password." },
+        { status: 409 }
+      );
+    }
     const msg = error instanceof Error ? error.message : "Failed to create account. Please try again.";
     return NextResponse.json({ error: msg }, { status: 500 });
   }
