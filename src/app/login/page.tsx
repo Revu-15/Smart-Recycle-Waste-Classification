@@ -19,6 +19,8 @@ import {
   ShieldCheck,
   Recycle,
   BarChart3,
+  Loader2,
+  ArrowRight,
 } from "lucide-react";
 import { loginUser, registerUser, setAuthenticated, UserProfile } from "@/lib/auth";
 
@@ -30,16 +32,13 @@ export default function AuthPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showSwitchPrompt, setShowSwitchPrompt] = useState(false);
 
-  // Login form state
-  const [loginEmail, setLoginEmail] = useState("");
-  const [loginPassword, setLoginPassword] = useState("");
-
-  // Register form state
-  const [registerName, setRegisterName] = useState("");
-  const [registerEmail, setRegisterEmail] = useState("");
-  const [registerPassword, setRegisterPassword] = useState("");
-  const [registerConfirmPassword, setRegisterConfirmPassword] = useState("");
+  // Unified form inputs across both tabs
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [accountType, setAccountType] = useState("Household Recycler");
   const [agreeTerms, setAgreeTerms] = useState(true);
 
@@ -47,26 +46,65 @@ export default function AuthPage() {
     setMode(targetMode);
     setError(null);
     setSuccess(null);
+    setShowSwitchPrompt(false);
+
+    // If switching to register and name is blank, suggest a friendly default from email
+    if (targetMode === "register" && !name && email) {
+      const localPart = email.split("@")[0].replace(/[0-9._-]+/g, " ").trim();
+      if (localPart) {
+        setName(localPart.charAt(0).toUpperCase() + localPart.slice(1));
+      }
+    }
   }
 
   async function handleLoginSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
     setSuccess(null);
+    setShowSwitchPrompt(false);
     setLoading(true);
 
+    const cleanEmail = email.trim().toLowerCase();
+
     try {
-      const res = loginUser(loginEmail, loginPassword);
-      if (!res.success) {
-        setError(res.error || "Failed to sign in. Please verify your credentials.");
-        setLoading(false);
+      // 1. Try server-side database login first
+      try {
+        const response = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: cleanEmail, password }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const userObj: UserProfile = {
+            name: data.user.name || "SmartRecycle Member",
+            email: data.user.email,
+            role: "Verified Recycler — Premium Member",
+            accountType: "Household Recycler",
+            joinedDate: new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" }),
+          };
+          setAuthenticated(userObj);
+          setSuccess("Welcome back! Redirecting to your dashboard...");
+          setTimeout(() => router.replace("/dashboard"), 600);
+          return;
+        }
+      } catch {
+        // Fall back to client authentication store
+      }
+
+      // 2. Client-side authentication fallback
+      const res = loginUser(cleanEmail, password);
+      if (res.success && res.user) {
+        setSuccess("Signed in successfully! Redirecting...");
+        setTimeout(() => router.replace("/dashboard"), 600);
         return;
       }
 
-      setSuccess("Signed in successfully! Redirecting to dashboard...");
-      setTimeout(() => {
-        router.replace("/dashboard");
-      }, 700);
+      // If account doesn't exist, provide clear guidance to register
+      setError(res.error || "No account found with this email. Please create an account to get started.");
+      setShowSwitchPrompt(true);
+      setLoading(false);
     } catch {
       setError("An unexpected error occurred. Please try again.");
       setLoading(false);
@@ -77,9 +115,28 @@ export default function AuthPage() {
     e.preventDefault();
     setError(null);
     setSuccess(null);
+    setShowSwitchPrompt(false);
 
-    if (registerPassword !== registerConfirmPassword) {
-      setError("Passwords do not match. Please ensure both passwords match.");
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanName = name.trim();
+
+    if (!cleanName) {
+      setError("Please enter your full name.");
+      return;
+    }
+
+    if (!cleanEmail || !cleanEmail.includes("@")) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+
+    if (!password || password.length < 6) {
+      setError("Password must be at least 6 characters long.");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError("Passwords do not match. Please verify both passwords.");
       return;
     }
 
@@ -91,51 +148,77 @@ export default function AuthPage() {
     setLoading(true);
 
     try {
-      const res = registerUser(registerName, registerEmail, registerPassword, accountType);
-      if (!res.success) {
+      // 1. Attempt to register in SQLite database via API
+      let serverUserCreated = false;
+      try {
+        const response = await fetch("/api/auth/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: cleanName, email: cleanEmail, password }),
+        });
+
+        if (response.ok) {
+          serverUserCreated = true;
+        }
+      } catch {
+        // If server API fails or is offline, the client store handles it smoothly
+      }
+
+      // 2. Save in client directory and authenticate
+      const res = registerUser(cleanName, cleanEmail, password, accountType);
+      if (!res.success && !serverUserCreated) {
         setError(res.error || "Failed to create account.");
         setLoading(false);
         return;
       }
 
-      setSuccess("Account created successfully! Redirecting to dashboard...");
+      setSuccess("Account created successfully! Welcome to SmartRecycle. Redirecting...");
       setTimeout(() => {
         router.replace("/dashboard");
-      }, 800);
+      }, 700);
     } catch {
       setError("An unexpected error occurred during registration. Please try again.");
       setLoading(false);
     }
   }
 
-  function handleDemoLogin(type: "admin" | "volunteer") {
+  function handleDemoLogin(userKey: "revanth" | "hitendra" | "volunteer") {
     setError(null);
     setLoading(true);
 
-    if (type === "admin") {
-      const demoAdmin: UserProfile = {
+    let demoUser: UserProfile;
+
+    if (userKey === "revanth") {
+      demoUser = {
+        name: "Revanth Polamreddy",
+        email: "polamreddyrevanth.82@gmail.com",
+        role: "Project Lead — AI Waste Classifier",
+        accountType: "Household Recycler",
+        joinedDate: "October 2026",
+      };
+    } else if (userKey === "hitendra") {
+      demoUser = {
         name: "Hitendra Sharma",
         email: "hitendra@example.com",
         role: "Lead Environmental Analyst",
         accountType: "Household Recycler",
         joinedDate: "January 2025",
       };
-      setAuthenticated(demoAdmin);
     } else {
-      const demoVolunteer: UserProfile = {
+      demoUser = {
         name: "Eco Volunteer",
         email: "volunteer@smartrecycle.org",
         role: "Community Green Ambassador",
         accountType: "Volunteer / Green Ambassador",
         joinedDate: "October 2026",
       };
-      setAuthenticated(demoVolunteer);
     }
 
-    setSuccess("Logged in with demo credentials! Redirecting...");
+    setAuthenticated(demoUser);
+    setSuccess(`Logged in as ${demoUser.name}! Redirecting...`);
     setTimeout(() => {
       router.replace("/dashboard");
-    }, 500);
+    }, 400);
   }
 
   return (
@@ -157,7 +240,6 @@ export default function AuthPage() {
       <div className="mx-auto w-full max-w-5xl grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
         {/* Left Side: Brand & Feature Highlights */}
         <div className="hidden lg:flex lg:col-span-5 flex-col justify-between rounded-3xl bg-gradient-to-br from-emerald-900 via-emerald-950 to-slate-950 p-8 text-white shadow-2xl relative overflow-hidden">
-          {/* Subtle eco pattern glow */}
           <div className="absolute -top-24 -right-24 h-64 w-64 rounded-full bg-emerald-500/20 blur-3xl pointer-events-none" />
           <div className="absolute -bottom-24 -left-24 h-64 w-64 rounded-full bg-teal-500/20 blur-3xl pointer-events-none" />
 
@@ -268,17 +350,31 @@ export default function AuthPage() {
               </p>
             </div>
 
-            {/* Error / Success Notifications */}
+            {/* Error Notifications */}
             {error && (
-              <div className="mb-5 flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
-                <AlertCircle className="h-5 w-5 shrink-0 text-rose-600 mt-0.5" />
-                <div>
-                  <p className="font-semibold">Authentication Error</p>
-                  <p className="mt-0.5 text-xs text-rose-700">{error}</p>
+              <div className="mb-5 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="h-5 w-5 shrink-0 text-rose-600 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="font-semibold">Authentication Note</p>
+                    <p className="mt-0.5 text-xs text-rose-700 leading-relaxed">{error}</p>
+                    {showSwitchPrompt && (
+                      <button
+                        type="button"
+                        onClick={() => handleSwitchMode("register")}
+                        className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-emerald-700 transition"
+                      >
+                        <UserPlus className="h-3.5 w-3.5" />
+                        Click here to create an account for {email || "this email"}
+                        <ArrowRight className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
 
+            {/* Success Notification */}
             {success && (
               <div className="mb-5 flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
                 <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600 mt-0.5" />
@@ -303,9 +399,9 @@ export default function AuthPage() {
                     <input
                       type="email"
                       required
-                      value={loginEmail}
-                      onChange={(e) => setLoginEmail(e.target.value)}
-                      placeholder="e.g. hitendra@example.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="e.g. polamreddyrevanth.82@gmail.com"
                       className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-100"
                     />
                   </div>
@@ -318,7 +414,7 @@ export default function AuthPage() {
                     </label>
                     <button
                       type="button"
-                      onClick={() => alert("For demo accounts:\n• Hitendra: hitendra@example.com / recycle123\n• Demo User: demo@smartrecycle.org / demo123\nOr create a new account via the 'Create Account' tab.")}
+                      onClick={() => alert("Quick Demo Accounts:\n• Revanth: polamreddyrevanth.82@gmail.com (Click the quick button below)\n• Hitendra: hitendra@example.com / recycle123\n• Eco Volunteer: volunteer@smartrecycle.org / demo123\n\nOr click 'Create Account' to register your own account.")}
                       className="text-xs font-medium text-emerald-600 hover:text-emerald-700 hover:underline"
                     >
                       Forgot password?
@@ -331,8 +427,8 @@ export default function AuthPage() {
                     <input
                       type={showPassword ? "text" : "password"}
                       required
-                      value={loginPassword}
-                      onChange={(e) => setLoginPassword(e.target.value)}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
                       placeholder="Enter your password"
                       className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-10 py-2.5 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-100"
                     />
@@ -362,27 +458,43 @@ export default function AuthPage() {
                   disabled={loading}
                   className="w-full mt-2 inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3 text-sm font-semibold text-white shadow-md shadow-emerald-600/20 transition hover:bg-emerald-700 disabled:opacity-50"
                 >
-                  <LogIn className="h-4 w-4" />
-                  {loading ? "Signing in..." : "Sign In to Dashboard"}
+                  {loading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Signing in...
+                    </>
+                  ) : (
+                    <>
+                      <LogIn className="h-4 w-4" />
+                      Sign In to Dashboard
+                    </>
+                  )}
                 </button>
 
                 {/* Quick 1-Click Demo Login options */}
                 <div className="pt-4 border-t border-slate-100">
                   <p className="text-center text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2.5">
-                    Or 1-Click Demo Testing
+                    1-Click Fast Login
                   </p>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     <button
                       type="button"
-                      onClick={() => handleDemoLogin("admin")}
-                      className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-800 transition text-center"
+                      onClick={() => handleDemoLogin("revanth")}
+                      className="rounded-xl border border-emerald-300 bg-emerald-50/60 px-2.5 py-2 text-xs font-bold text-emerald-900 hover:bg-emerald-100 transition text-center"
                     >
-                      ⚡ Demo Member (Hitendra)
+                      ⚡ Revanth (Lead)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDemoLogin("hitendra")}
+                      className="rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-2 text-xs font-semibold text-slate-700 hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-800 transition text-center"
+                    >
+                      👤 Hitendra
                     </button>
                     <button
                       type="button"
                       onClick={() => handleDemoLogin("volunteer")}
-                      className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-800 transition text-center"
+                      className="rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-2 text-xs font-semibold text-slate-700 hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-800 transition text-center"
                     >
                       🌱 Eco Volunteer
                     </button>
@@ -403,9 +515,9 @@ export default function AuthPage() {
                     <input
                       type="text"
                       required
-                      value={registerName}
-                      onChange={(e) => setRegisterName(e.target.value)}
-                      placeholder="e.g. Sarah Jenkins"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="e.g. Revanth Polamreddy"
                       className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-100"
                     />
                   </div>
@@ -422,9 +534,9 @@ export default function AuthPage() {
                     <input
                       type="email"
                       required
-                      value={registerEmail}
-                      onChange={(e) => setRegisterEmail(e.target.value)}
-                      placeholder="e.g. sarah@example.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="e.g. polamreddyrevanth.82@gmail.com"
                       className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-100"
                     />
                   </div>
@@ -458,8 +570,8 @@ export default function AuthPage() {
                       <input
                         type={showPassword ? "text" : "password"}
                         required
-                        value={registerPassword}
-                        onChange={(e) => setRegisterPassword(e.target.value)}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
                         placeholder="At least 6 chars"
                         className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-9 py-2.5 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-100"
                       />
@@ -484,8 +596,8 @@ export default function AuthPage() {
                       <input
                         type={showConfirmPassword ? "text" : "password"}
                         required
-                        value={registerConfirmPassword}
-                        onChange={(e) => setRegisterConfirmPassword(e.target.value)}
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
                         placeholder="Re-enter password"
                         className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-9 py-2.5 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-100"
                       />
@@ -519,8 +631,17 @@ export default function AuthPage() {
                   disabled={loading}
                   className="w-full mt-2 inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3 text-sm font-semibold text-white shadow-md shadow-emerald-600/20 transition hover:bg-emerald-700 disabled:opacity-50"
                 >
-                  <UserPlus className="h-4 w-4" />
-                  {loading ? "Creating Account..." : "Create Account & Start"}
+                  {loading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Creating Account...
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus className="h-4 w-4" />
+                      Create Account & Start
+                    </>
+                  )}
                 </button>
               </form>
             )}

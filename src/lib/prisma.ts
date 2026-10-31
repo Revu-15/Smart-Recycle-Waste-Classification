@@ -1,21 +1,11 @@
-import { PrismaLibSql } from "@prisma/adapter-libsql";
+import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import { PrismaClient } from "@/generated/prisma/client";
 
-const defaultDb = process.env.VERCEL ? "file:/tmp/dev.db" : "file:./dev.db";
-const databaseUrl = process.env.DATABASE_URL || defaultDb;
-const authToken = process.env.DATABASE_AUTH_TOKEN || process.env.TURSO_AUTH_TOKEN;
+const databaseUrl = process.env.DATABASE_URL ?? "file:./dev.db";
+const sqlitePath = databaseUrl.startsWith("file:") ? databaseUrl.replace(/^file:/, "") : databaseUrl;
 
-const url =
-  databaseUrl.startsWith("libsql:") ||
-  databaseUrl.startsWith("https:") ||
-  databaseUrl.startsWith("http:") ||
-  databaseUrl.startsWith("file:")
-    ? databaseUrl
-    : `file:${databaseUrl}`;
-
-const adapter = new PrismaLibSql({
-  url,
-  ...(authToken ? { authToken } : {}),
+const adapter = new PrismaBetterSqlite3({
+  url: sqlitePath,
 });
 
 const globalForPrisma = globalThis as unknown as {
