@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Bell, Search, ChevronDown, UserCircle2, Settings, LogOut } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { logout, getCurrentUser, subscribeToAuth, type UserSession } from "@/lib/auth";
+import { logout, getCurrentUser, UserProfile } from "@/lib/auth";
 
 const pageTitles: Record<string, { label: string; title: string }> = {
   "/dashboard": { label: "Overview", title: "Dashboard" },
@@ -21,31 +21,23 @@ export function Topbar() {
   const pathname = usePathname();
   const meta = pageTitles[pathname] ?? { label: "SmartRecycle", title: "" };
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [user, setUser] = useState<UserSession | null>(null);
+  const [user, setUser] = useState<UserProfile | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
   useEffect(() => {
     setUser(getCurrentUser());
-    const unsub = subscribeToAuth(() => {
-      setUser(getCurrentUser());
-    });
+  }, []);
 
+  useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setDropdownOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClick);
-    return () => {
-      unsub();
-      document.removeEventListener("mousedown", handleClick);
-    };
+    return () => document.removeEventListener("mousedown", handleClick);
   }, []);
-
-  const displayName = user?.name || "Eco Member";
-  const displayEmail = user?.email || "member@smartrecycle.ai";
-  const initial = displayName.charAt(0).toUpperCase();
 
   return (
     <header className="flex items-center justify-between border-b border-slate-200 bg-white/90 px-6 py-4 backdrop-blur lg:px-8">
@@ -76,20 +68,20 @@ export function Topbar() {
             className="flex items-center gap-2 rounded-full border border-slate-200 px-3 py-2 transition hover:bg-slate-50"
           >
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-700">
-              {initial}
+              {(user?.name?.[0] ?? "H").toUpperCase()}
             </div>
             <div className="hidden text-left sm:block">
-              <p className="text-sm font-semibold text-slate-900">{displayName}</p>
-              <p className="text-xs text-slate-500">Active Member</p>
+              <p className="text-sm font-semibold text-slate-900">{user?.name ? user.name.split(" ")[0] : "Hitendra"}</p>
+              <p className="text-xs text-slate-500">{user?.accountType ?? user?.role ?? "Premium Member"}</p>
             </div>
             <ChevronDown className={`h-4 w-4 text-slate-500 transition-transform ${dropdownOpen ? "rotate-180" : ""}`} />
           </button>
 
           {dropdownOpen && (
-            <div className="absolute right-0 top-full z-50 mt-2 w-52 rounded-2xl border border-slate-200 bg-white py-2 shadow-xl">
+            <div className="absolute right-0 top-full z-50 mt-2 w-56 rounded-2xl border border-slate-200 bg-white py-2 shadow-xl">
               <div className="border-b border-slate-100 px-4 py-3">
-                <p className="text-sm font-semibold text-slate-900">{displayName}</p>
-                <p className="text-xs text-slate-500">{displayEmail}</p>
+                <p className="text-sm font-semibold text-slate-900">{user?.name ?? "Hitendra Sharma"}</p>
+                <p className="text-xs text-slate-500 truncate">{user?.email ?? "hitendra@example.com"}</p>
               </div>
               <Link
                 href="/profile"

@@ -60,7 +60,7 @@ export function WasteChart() {
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Tooltip
-                formatter={(value: any, name: any) => [`${value ?? 0} predictions`, String(name ?? "")]}
+                formatter={(value: any, name: any) => [`${value} predictions`, name]}
                 contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 12 }}
               />
               <Pie

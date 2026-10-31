@@ -37,7 +37,7 @@ function RecyclablePieChart({ recyclable, nonRecyclable }: { recyclable: number;
     <ResponsiveContainer width="100%" height={260}>
       <PieChart>
         <Tooltip
-          formatter={(v: any, n: any) => [`${v ?? 0} items`, String(n ?? "")]}
+          formatter={(v: any, n: any) => [`${v} items`, n]}
           contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 12 }}
         />
         <Legend iconType="circle" iconSize={8} formatter={(v) => <span style={{ fontSize: 11, color: "#64748b" }}>{v}</span>} />
@@ -163,7 +163,7 @@ export default function WasteAnalyticsPage() {
                       <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} />
                       <Tooltip
                         contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 12 }}
-                        formatter={(v: any) => [`${v ?? 0} predictions`]}
+                        formatter={(v: any) => [`${v} predictions`]}
                       />
                       <Bar dataKey="value" radius={[6, 6, 0, 0]}>
                         {wasteBarData.map((entry, index) => (

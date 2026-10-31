@@ -1,8 +1,7 @@
-import { prisma, ensureDatabaseTables } from "@/lib/prisma";
+import { prisma } from "@/lib/prisma";
 import type { FeedbackRecord, PredictionResponse } from "@/lib/types";
 
 export async function addPredictionToLog(prediction: PredictionResponse, image: string) {
-  await ensureDatabaseTables();
   await prisma.predictionLog.create({
     data: {
       image,
@@ -20,7 +19,6 @@ export async function addPredictionToLog(prediction: PredictionResponse, image: 
 }
 
 export async function addFeedbackRecord(record: Omit<FeedbackRecord, "id" | "timestamp" | "status"> & { id?: string; correctedLabel?: string; feedbackType?: "correct" | "incorrect" }) {
-  await ensureDatabaseTables();
   return prisma.feedback.create({
     data: {
       id: record.id ?? crypto.randomUUID(),
@@ -36,14 +34,12 @@ export async function addFeedbackRecord(record: Omit<FeedbackRecord, "id" | "tim
 }
 
 export async function getFeedbackRecords() {
-  await ensureDatabaseTables();
   return prisma.feedback.findMany({
     orderBy: { timestamp: "desc" },
   });
 }
 
 export async function getPredictionLog() {
-  await ensureDatabaseTables();
   return prisma.predictionLog.findMany({
     orderBy: { createdAt: "desc" },
   });

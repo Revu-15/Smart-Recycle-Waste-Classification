@@ -2,8 +2,6 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import { isAuthenticated } from "@/lib/auth";
 
 type Detection = {
   component?: string;
@@ -16,7 +14,6 @@ type Detection = {
 };
 
 export default function WasteAnalyzer() {
-  const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -25,19 +22,10 @@ export default function WasteAnalyzer() {
   const [error, setError] = useState<string | null>(null);
 
   function handleChoose() {
-    if (!isAuthenticated()) {
-      router.push("/login?required=1");
-      return;
-    }
     fileInputRef.current?.click();
   }
 
   function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    if (!isAuthenticated()) {
-      e.target.value = "";
-      router.push("/login?required=1");
-      return;
-    }
     const f = e.target.files?.[0] ?? null;
     setFile(f);
     setResults(null);
