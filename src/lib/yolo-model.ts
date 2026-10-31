@@ -6,14 +6,7 @@ import path from "node:path";
 import type { BoundingBox, PredictionObject, PredictionResponse } from "@/lib/types";
 
 function getPythonBin(): string {
-  if (process.env.PYTHON_BIN) {
-    return process.env.PYTHON_BIN;
-  }
-  const venvPython = path.resolve(process.cwd(), ".venv", "Scripts", "python.exe");
-  if (existsSync(venvPython)) {
-    return venvPython;
-  }
-  return "python";
+  return process.env.PYTHON_BIN || "python";
 }
 
 const PYTHON_BIN = getPythonBin();
