@@ -80,7 +80,55 @@ interface EnrichedMetadata {
 function getWasteMetadata(label: string, confidence: number): EnrichedMetadata {
   const norm = label.toLowerCase();
 
-  if (norm.includes("glass") || norm.includes("wine glass")) {
+  // 1. Check electronic devices and mobile phones first (E-Waste has high priority)
+  if (
+    norm.includes("e-waste") ||
+    norm.includes("phone") ||
+    norm.includes("mobile") ||
+    norm.includes("cell") ||
+    norm.includes("smartphone") ||
+    norm.includes("electronic") ||
+    norm.includes("laptop") ||
+    norm.includes("tablet") ||
+    norm.includes("ipad") ||
+    norm.includes("mouse") ||
+    norm.includes("keyboard") ||
+    norm.includes("screen") ||
+    norm.includes("display") ||
+    norm.includes("charger") ||
+    norm.includes("device") ||
+    norm.includes("gadget")
+  ) {
+    return {
+      material: "Electronic Waste",
+      recyclable: false,
+      contamination: "High",
+      cleaning: "Do not dismantle or wash with water; keep dry.",
+      recommendation: "Take to Certified E-Waste Recycling Center",
+      explanation: [
+        "Circuit boards, semiconductor chips, and lithium battery detected",
+        "Contains heavy metals and hazardous electronic components unsuitable for standard bins",
+        "Valuable rare-earth elements recoverable through specialized e-waste processing",
+      ],
+    };
+  }
+
+  if (norm.includes("battery")) {
+    return {
+      material: "Lithium / Chemical Cell",
+      recyclable: false,
+      contamination: "High",
+      cleaning: "Do not wet or crush; tape terminals.",
+      recommendation: "Take to Dedicated Battery Drop-Off",
+      explanation: ["Electrochemical cell casing", "Hazardous material requiring dedicated handling"],
+    };
+  }
+
+  if (
+    (norm.includes("glass") || norm.includes("wine glass") || norm.includes("vase")) &&
+    !norm.includes("phone") &&
+    !norm.includes("screen")
+  ) {
     return {
       material: "Glass",
       recyclable: true,
@@ -215,13 +263,47 @@ function buildFallbackObjects(filename: string): PredictionObject[] {
   const norm = filename.toLowerCase();
   let label = "Plastic Bottle";
 
-  if (norm.includes("cardboard") || norm.includes("box")) label = "Cardboard";
-  else if (norm.includes("glass")) label = "Glass Bottle";
-  else if (norm.includes("can") || norm.includes("metal")) label = "Aluminium Can";
-  else if (norm.includes("paper")) label = "Paper";
-  else if (norm.includes("bag")) label = "Plastic Bag";
-  else if (norm.includes("battery")) label = "Battery";
-  else if (norm.includes("food") || norm.includes("organic")) label = "Food Waste";
+  if (
+    norm.includes("phone") ||
+    norm.includes("mobile") ||
+    norm.includes("cell") ||
+    norm.includes("smartphone") ||
+    norm.includes("iphone") ||
+    norm.includes("android") ||
+    norm.includes("samsung") ||
+    norm.includes("redmi") ||
+    norm.includes("xiaomi") ||
+    norm.includes("laptop") ||
+    norm.includes("computer") ||
+    norm.includes("tablet") ||
+    norm.includes("ipad") ||
+    norm.includes("electronic") ||
+    norm.includes("ewaste") ||
+    norm.includes("e-waste") ||
+    norm.includes("gadget") ||
+    norm.includes("charger") ||
+    norm.includes("cable") ||
+    norm.includes("screen") ||
+    norm.includes("device")
+  ) {
+    label = "E-Waste";
+  } else if (norm.includes("cardboard") || norm.includes("box")) {
+    label = "Cardboard";
+  } else if (norm.includes("glass") && !norm.includes("screen")) {
+    label = "Glass Bottle";
+  } else if (norm.includes("can") || norm.includes("metal") || norm.includes("tin")) {
+    label = "Aluminium Can";
+  } else if (norm.includes("paper") || norm.includes("book") || norm.includes("sheet")) {
+    label = "Paper";
+  } else if (norm.includes("bag") || norm.includes("pouch") || norm.includes("packet")) {
+    label = "Plastic Bag";
+  } else if (norm.includes("battery")) {
+    label = "Battery";
+  } else if (norm.includes("food") || norm.includes("organic") || norm.includes("apple") || norm.includes("banana")) {
+    label = "Food Waste";
+  } else if (norm.includes("cloth") || norm.includes("textile") || norm.includes("shirt")) {
+    label = "Textile";
+  }
 
   const meta = getWasteMetadata(label, 85);
 

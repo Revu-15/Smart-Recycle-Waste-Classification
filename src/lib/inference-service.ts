@@ -59,6 +59,20 @@ const categoryCatalog = [
     ],
   },
   {
+    label: "E-Waste",
+    material: "Electronic Waste",
+    recyclable: false,
+    contamination: "High" as const,
+    cleaning: "Keep dry; do not disassemble or wash",
+    recommendation: "Take to Certified E-Waste / Electronics Drop-Off",
+    explanation: ["Circuitry, semiconductor chip, or display screen detected", "Contains lithium battery and electronic components", "Hazardous in landfill; reclaimable rare metals"],
+    alternatives: [
+      { label: "Battery", confidence: 9.8 },
+      { label: "Plastic", confidence: 5.4 },
+      { label: "Other", confidence: 3.2 },
+    ],
+  },
+  {
     label: "Battery",
     material: "Lithium / Battery Cell",
     recyclable: false,
@@ -105,6 +119,12 @@ export async function inferWasteClassification(file: File) {
   const imageStats = getImageStats(imageBuffer);
 
   const filenameHint = [
+    "phone",
+    "mobile",
+    "electronic",
+    "laptop",
+    "charger",
+    "e-waste",
     "bottle",
     "can",
     "paper",
